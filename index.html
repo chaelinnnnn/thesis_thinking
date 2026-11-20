@@ -11,6 +11,7 @@
   * { box-sizing:border-box; }
   body { margin:0; font-family:"Noto Sans KR",system-ui,sans-serif; color:var(--ink); background:var(--bg); line-height:1.6; font-size:14px; }
   header.top { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; padding:22px 28px; font-size:12px; font-weight:700; }
+  header.top a.logo { color:inherit; text-decoration:none; }
   header.top .logo { font-size:28px; font-weight:300; letter-spacing:.02em; line-height:1; }
   header.top .right { text-align:right; display:flex; justify-content:flex-end; align-items:center; gap:18px; }
   .lang { display:inline-flex; gap:5px; align-items:center; font-size:12px; color:#bbb; }
@@ -74,6 +75,9 @@
   .btn { border:1px solid var(--ink); padding:7px 16px; font-size:12.5px; font-weight:700; background:#fff; }
   .btn.primary { background:var(--ink); color:#fff; }
   .btn:disabled { opacity:.4; cursor:default; }
+  .backbar { max-width:600px; margin:0 auto 18px; }
+  .back { font-size:12.5px; font-weight:700; border:1px solid #111; padding:6px 12px; background:#fff; }
+  .back:hover { background:#111; color:#fff; }
   .linkbtn { font-size:12px; text-decoration:underline; color:var(--sub); }
 
   .card { max-width:600px; margin:16px auto; border:2px solid #111; padding:18px 20px; background:#fff; }
@@ -91,7 +95,7 @@
 </head>
 <body>
 <header class="top">
-  <div class="logo">6 days</div>
+  <a class="logo" href="#" id="logoLink">6 days</a>
   <div data-i18n="headMid">Thesis study · 생각의 기록</div>
   <div class="right"><span class="lang"><button data-lang="ko">KO</button><span>/</span><button data-lang="en">EN</button></span><span class="who">Chaelin Kim · Pratt MFA Communication Design</span></div>
 </header>
@@ -108,8 +112,8 @@
   <div id="pick" class="strips"></div>
 
   <div id="part" class="hidden">
+    <div class="backbar"><button class="back" id="switchBtn"><span aria-hidden="true">←</span> <span data-i18n="switch">번호 다시 고르기</span></button></div>
     <div class="strips" id="days"></div>
-    <div style="text-align:center;margin-top:34px"><button class="linkbtn" id="switchBtn" data-i18n="switch">번호 바꾸기</button></div>
   </div>
 
   <!-- day panel (moved under the open tile) -->
@@ -172,7 +176,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwgLjWhzMGwMGM96UPPAj_D
 const I18N = {
   ko: {
     headMid:"Thesis study · 생각의 기록", introPick:"자기 번호를 눌러 그날의 기록과 하루 로그를 올려주세요.",
-    introPart:(p,n)=>`${p} · 저장됨 ${n} / 6 · 오늘 날짜를 눌러 열어주세요`, participant:"참가자", saved:"✓ 저장됨", switch:"번호 바꾸기",
+    introPart:(p,n)=>`${p} · 저장됨 ${n} / 6 · 오늘 날짜를 눌러 열어주세요`, participant:"참가자", saved:"✓ 저장됨", switch:"번호 다시 고르기",
     upload:"기록 올리기", uploadHint:"수첩 사진, 녹음, 메모 캡처. 여러 개 가능", qFrom:"오늘의 질문", askLabel:"기록을 올린 뒤, 기록에서 눈에 띄는 단어 2~3개를 적어주세요", askPh:"예: 창고, 할머니, 겨울", askBtn:"질문 받기", askNeed:"단어를 하나 이상 적어주세요",
     qWait:"기록을 올리면 30분 안에 여기에 질문이 하나 도착해요.", qCheck:"질문 확인하기", logTitle:"하루 로그 (5분)",
     q1:"1. 포착: 떠오른 생각을 놓치지 않고 기록할 수 있었나요?", q1ph:"놓친 게 있었다면 한 줄로", oneLine:"한 줄로",
@@ -213,7 +217,7 @@ const I18N = {
   },
   en: {
     headMid:"Thesis study · Notes on thinking", introPick:"Tap your number to upload that day's notes and daily log.",
-    introPart:(p,n)=>`${p} · ${n} / 6 saved · Tap today's date to open it`, participant:"Participant", saved:"✓ Saved", switch:"Change number",
+    introPart:(p,n)=>`${p} · ${n} / 6 saved · Tap today's date to open it`, participant:"Participant", saved:"✓ Saved", switch:"Back to numbers",
     upload:"Upload notes", uploadHint:"Notebook photos, recordings, screenshots. Several at once is fine", qFrom:"Today's question", askLabel:"After uploading, write 2–3 words that stand out in your notes", askPh:"e.g. storage, grandma, winter", askBtn:"Get my question", askNeed:"Please write at least one word",
     qWait:"After you upload, one question will arrive here within 30 minutes.", qCheck:"Check for question", logTitle:"Daily log (5 min)",
     q1:"1. Capture: could you record your thoughts without losing them?", q1ph:"If anything slipped away, one line", oneLine:"One line",
@@ -328,9 +332,9 @@ function hexToHsl(hex){ const n=parseInt(hex.slice(1),16); let r=(n>>16&255)/255
   const mx=Math.max(r,g,b), mn=Math.min(r,g,b); let h=0,sat=0,l=(mx+mn)/2;
   if (mx!==mn){ const d=mx-mn; sat=l>.5?d/(2-mx-mn):d/(mx+mn); h= mx===r?(g-b)/d+(g<b?6:0) : mx===g?(b-r)/d+2 : (r-g)/d+4; h*=60; }
   return [h, sat*100, l*100]; }
-function dayShade(hex, d){ const [h,sat,l]=hexToHsl(hex); const L=Math.max(22, Math.min(90, l+20-d*9)); const S=Math.min(100, sat+d*4); return `hsl(${h.toFixed(0)} ${S.toFixed(0)}% ${L.toFixed(0)}%)`; }
+function dayShade(hex, d){ const [h,sat,l]=hexToHsl(hex); const L=Math.max(22, Math.min(90, l+20-d*9)); const S=Math.min(100, sat+d*1.5); return `hsl(${h.toFixed(0)} ${S.toFixed(0)}% ${L.toFixed(0)}%)`; }
 function dayInk(hex, d){
-  const [h,sat,l]=hexToHsl(hex); const L=Math.max(22, Math.min(90, l+20-d*9))/100, S=Math.min(100, sat+d*4)/100;
+  const [h,sat,l]=hexToHsl(hex); const L=Math.max(22, Math.min(90, l+20-d*9))/100, S=Math.min(100, sat+d*1.5)/100;
   const k=n=>(n+h/30)%12, a=S*Math.min(L,1-L), f=n=>L-a*Math.max(-1,Math.min(k(n)-3,9-k(n),1));
   const lin=c=>c<=.03928?c/12.92:Math.pow((c+.055)/1.055,2.4);
   const Y=.2126*lin(f(0))+.7152*lin(f(8))+.0722*lin(f(4));
@@ -362,8 +366,16 @@ function absorb(data){
 // ---------- pick ----------
 PIDS.forEach((p,i)=>{ const b=document.createElement("button"); b.className="strip"; styleStrip(b,i,PCOLOR[p]);
   b.innerHTML=`<span><span class="big">${p}</span><span class="meta" data-i18n="participant">${t("participant")}</span></span><span class="plus">+</span>`; b.onclick=()=>choose(p); $("#pick").appendChild(b); });
-async function choose(p){ pid=p; store("pid",p); day=todayIdx(); openDay=day; showPart(); await loadMine(true); }
-$("#switchBtn").onclick=()=>{ pid=null; store("pid",""); $("#part").classList.add("hidden"); $("#dayCard").classList.add("hidden"); $("#pick").classList.remove("hidden"); $("#introText").textContent=t("introPick"); };
+async function choose(p, fromHash){ pid=p; store("pid",p); day=todayIdx(); openDay=day; if (!fromHash && location.hash!=="#"+p) location.hash=p; showPart(); window.scrollTo(0,0); await loadMine(true); }
+function goHome(){ pid=null; openDay=null; store("pid",""); $("#part").classList.add("hidden"); $("#dayCard").classList.add("hidden"); $("#pick").classList.remove("hidden"); $("#introText").textContent=t("introPick"); status(""); window.scrollTo(0,0); }
+$("#switchBtn").onclick=()=>{ if (location.hash && location.hash!=="#admin") history.back(); else goHome(); };
+$("#logoLink").onclick=ev=>{ ev.preventDefault(); if (location.hash==="#admin") return; if (location.hash) history.back(); else goHome(); };
+window.addEventListener("hashchange", ()=>{
+  const h=location.hash.slice(1);
+  if (h==="admin") return;
+  if (ORDER[h]){ if (pid!==h) choose(h, true); }
+  else if (pid) goHome();
+});
 function showPart(){ $("#pick").classList.add("hidden"); $("#part").classList.remove("hidden"); renderPart(true); }
 
 async function loadMine(resetForm){
@@ -578,7 +590,7 @@ applyLang(); $("#introText").textContent=t("introPick");
 (async ()=>{
   if (location.hash==="#admin"){ const k=load("akey"); if (k){ adminKey=k; await loadAll(); } else showLogin(); return; }
   const saved=load("pid");
-  if (saved && ORDER[saved]){ pid=saved; day=todayIdx(); openDay=day; showPart(); await loadMine(true); }
+  const hp=location.hash.slice(1); if (ORDER[hp]){ await choose(hp, true); } else if (saved && ORDER[saved]){ pid=saved; day=todayIdx(); openDay=day; showPart(); await loadMine(true); }
 })();
 </script>
 </body>
