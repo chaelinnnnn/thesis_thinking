@@ -76,8 +76,8 @@
   .btn.primary { background:var(--ink); color:#fff; }
   .btn:disabled { opacity:.4; cursor:default; }
   .backbar { max-width:600px; margin:0 auto 18px; }
-  .back { font-size:12.5px; font-weight:700; border:1px solid #111; padding:6px 12px; background:#fff; }
-  .back:hover { background:#111; color:#fff; }
+  .back { font-size:26px; line-height:1; width:40px; height:40px; display:grid; place-items:center; margin-left:-8px; }
+  .back:hover { background:#f2f2f2; }
   .linkbtn { font-size:12px; text-decoration:underline; color:var(--sub); }
 
   .card { max-width:600px; margin:16px auto; border:2px solid #111; padding:18px 20px; background:#fff; }
@@ -112,7 +112,7 @@
   <div id="pick" class="strips"></div>
 
   <div id="part" class="hidden">
-    <div class="backbar"><button class="back" id="switchBtn"><span aria-hidden="true">←</span> <span data-i18n="switch">번호 다시 고르기</span></button></div>
+    <div class="backbar"><button class="back" id="switchBtn" aria-label="뒤로" title="뒤로">←</button></div>
     <div class="strips" id="days"></div>
   </div>
 
@@ -176,7 +176,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwgLjWhzMGwMGM96UPPAj_D
 const I18N = {
   ko: {
     headMid:"Thesis study · 생각의 기록", introPick:"자기 번호를 눌러 그날의 기록과 하루 로그를 올려주세요.",
-    introPart:(p,n)=>`${p} · 저장됨 ${n} / 6 · 오늘 날짜를 눌러 열어주세요`, participant:"참가자", saved:"✓ 저장됨", switch:"번호 다시 고르기",
+    introPart:(p,n)=>`${p} · 저장됨 ${n} / 6 · 오늘 날짜를 눌러 열어주세요`, participant:"참가자", saved:"✓ 저장됨", switch:"뒤로",
     upload:"기록 올리기", uploadHint:"수첩 사진, 녹음, 메모 캡처. 여러 개 가능", qFrom:"오늘의 질문", askLabel:"기록을 올린 뒤, 기록에서 눈에 띄는 단어 2~3개를 적어주세요", askPh:"예: 창고, 할머니, 겨울", askBtn:"질문 받기", askNeed:"단어를 하나 이상 적어주세요",
     qWait:"기록을 올리면 30분 안에 여기에 질문이 하나 도착해요.", qCheck:"질문 확인하기", logTitle:"하루 로그 (5분)",
     q1:"1. 포착: 떠오른 생각을 놓치지 않고 기록할 수 있었나요?", q1ph:"놓친 게 있었다면 한 줄로", oneLine:"한 줄로",
@@ -217,7 +217,7 @@ const I18N = {
   },
   en: {
     headMid:"Thesis study · Notes on thinking", introPick:"Tap your number to upload that day's notes and daily log.",
-    introPart:(p,n)=>`${p} · ${n} / 6 saved · Tap today's date to open it`, participant:"Participant", saved:"✓ Saved", switch:"Back to numbers",
+    introPart:(p,n)=>`${p} · ${n} / 6 saved · Tap today's date to open it`, participant:"Participant", saved:"✓ Saved", switch:"Back",
     upload:"Upload notes", uploadHint:"Notebook photos, recordings, screenshots. Several at once is fine", qFrom:"Today's question", askLabel:"After uploading, write 2–3 words that stand out in your notes", askPh:"e.g. storage, grandma, winter", askBtn:"Get my question", askNeed:"Please write at least one word",
     qWait:"After you upload, one question will arrive here within 30 minutes.", qCheck:"Check for question", logTitle:"Daily log (5 min)",
     q1:"1. Capture: could you record your thoughts without losing them?", q1ph:"If anything slipped away, one line", oneLine:"One line",
@@ -263,6 +263,7 @@ function applyLang(){
   document.documentElement.lang=LANG;
   document.querySelectorAll("[data-lang]").forEach(b=>b.classList.toggle("on", b.dataset.lang===LANG));
   document.querySelectorAll("[data-i18n]").forEach(el=>{ const v=t(el.dataset.i18n); if (typeof v==="string") el.textContent=v; });
+  { const bb=$("#switchBtn"); if (bb){ bb.setAttribute("aria-label", t("switch")); bb.title=t("switch"); } }
   document.querySelectorAll("[data-i18n-ph]").forEach(el=>{ el.placeholder=t(el.dataset.i18nPh); });
 }
 const TOPICS_KO = [
