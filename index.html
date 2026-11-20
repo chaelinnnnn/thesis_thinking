@@ -176,7 +176,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwgLjWhzMGwMGM96UPPAj_D
 const I18N = {
   ko: {
     headMid:"Thesis study · 생각의 기록", introPick:"자기 번호를 눌러 그날의 기록과 하루 로그를 올려주세요.",
-    introPart:(p,n)=>`${p} · 저장됨 ${n} / 6 · 오늘 할 날을 눌러 열어주세요`, participant:"참가자", saved:"✓ 저장됨", switch:"뒤로",
+    introPart:(p,n)=>`${p} · 완료 ${n} / 6 · 오늘 할 날을 눌러 열어주세요`, participant:"참가자", saved:"✓ 완료", inProgress:"작성 중", autoSaved:"자동 저장됨", switch:"뒤로",
     upload:"기록 올리기", uploadHint:"수첩 사진, 녹음, 메모 캡처. 여러 개 가능", qFrom:"오늘의 질문", askLabel:"기록을 올린 뒤, 기록에서 눈에 띄는 단어 2~3개를 적어주세요", askPh:"예: 창고, 할머니, 겨울", askBtn:"질문 받기", askNeed:"단어를 하나 이상 적어주세요",
     qWait:"기록을 올리면 30분 안에 여기에 질문이 하나 도착해요.", qCheck:"질문 확인하기", logTitle:"하루 로그 (5분)",
     q1:"1. 포착: 떠오른 생각을 놓치지 않고 기록할 수 있었나요?", q1ph:"놓친 게 있었다면 한 줄로", oneLine:"한 줄로",
@@ -217,7 +217,7 @@ const I18N = {
   },
   en: {
     headMid:"Thesis study · Notes on thinking", introPick:"Tap your number to upload that day's notes and daily log.",
-    introPart:(p,n)=>`${p} · ${n} / 6 saved · Tap today's day to open it`, participant:"Participant", saved:"✓ Saved", switch:"Back",
+    introPart:(p,n)=>`${p} · ${n} / 6 done · Tap today's day to open it`, participant:"Participant", saved:"✓ Done", inProgress:"In progress", autoSaved:"Saved automatically", switch:"Back",
     upload:"Upload notes", uploadHint:"Notebook photos, recordings, screenshots. Several at once is fine", qFrom:"Today's question", askLabel:"After uploading, write 2–3 words that stand out in your notes", askPh:"e.g. storage, grandma, winter", askBtn:"Get my question", askNeed:"Please write at least one word",
     qWait:"After you upload, one question will arrive here within 30 minutes.", qCheck:"Check for question", logTitle:"Daily log (5 min)",
     q1:"1. Capture: could you record your thoughts without losing them?", q1ph:"If anything slipped away, one line", oneLine:"One line",
@@ -305,7 +305,7 @@ function renderToolQs(w){
   TOOLQ[w].forEach(q=>{
     const lab=document.createElement("label"); lab.textContent=t("tq")[q.label||q.k]; box.appendChild(lab);
     if (q.type==="text"){
-      const ta=document.createElement("textarea"); ta.value=form[q.k]||""; ta.oninput=()=>{ form[q.k]=ta.value; }; box.appendChild(ta);
+      const ta=document.createElement("textarea"); ta.value=form[q.k]||""; ta.oninput=()=>{ form[q.k]=ta.value; autosave(); }; box.appendChild(ta);
     } else {
       const wrap=document.createElement("div"); wrap.className="chips";
       q.opts.forEach(o=>{
@@ -313,14 +313,15 @@ function renderToolQs(w){
         const isOn=()=> q.type==="multi" ? (form[q.k]||"").split(" | ").includes(o) : form[q.k]===o;
         b.classList.toggle("on", isOn());
         b.onclick=()=>{
-          if (q.type==="multi"){ const set=new Set((form[q.k]||"").split(" | ").filter(Boolean)); set.has(o)?set.delete(o):set.add(o); form[q.k]=[...set].join(" | "); }
+          if (q.type==="multi"){ const set=new Set((form[q.k]||"").split(" | ").filter(Boolean)); set.has(o)?set.delete(o):set.add(o); form[q.k]=[...set].join(" | "); autosave(); }
           else form[q.k]= form[q.k]===o ? "" : o;
+          autosave();
           [...wrap.children].forEach((c,i)=>{ const v=q.opts[i]; c.classList.toggle("on", q.type==="multi" ? (form[q.k]||"").split(" | ").includes(v) : form[q.k]===v); });
         };
         wrap.appendChild(b);
       });
       box.appendChild(wrap);
-      if (q.note){ const inp=document.createElement("input"); inp.type="text"; inp.style.marginTop="8px"; inp.placeholder=t(q.noteLabel||"notePh"); inp.value=form[q.note]||""; inp.oninput=()=>{ form[q.note]=inp.value; }; box.appendChild(inp); }
+      if (q.note){ const inp=document.createElement("input"); inp.type="text"; inp.style.marginTop="8px"; inp.placeholder=t(q.noteLabel||"notePh"); inp.value=form[q.note]||""; inp.oninput=()=>{ form[q.note]=inp.value; autosave(); }; box.appendChild(inp); }
     }
   });
 }
@@ -348,7 +349,12 @@ let pid=null, day=0, entries={}, questions={}, form={files:[]}, adminKey=null, s
 function status(t, err){ const s=$("#status"); s.textContent=t||""; s.className="msg"+(err?" err":""); }
 function docId(p,d){ return p+"_d"+(d+1); }
 function wayOf(p,d){ return ORDER[p][d]; }
-function nextDayIdx(){ if (!pid) return 0; for (let d=0; d<6; d++) if (!entries[docId(pid,d)]) return d; return 5; }
+function isComplete(e){ return !!(e && e.log && e.log.capture && e.log.continuation); }
+function nextDayIdx(){
+  if (!pid) return 0;
+  for (let d=0; d<6; d++){ const e=entries[docId(pid,d)]; if (e && !isComplete(e)) return d; }   // a day left half-done comes first
+  for (let d=0; d<6; d++) if (!isComplete(entries[docId(pid,d)])) return d;
+  return 5; }
 function todayIdx(){ try { const t=new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"}); const i=DATES.indexOf(t); return i<0?0:i; } catch(e){ return 0; } }
 function store(k,v){ try{ localStorage.setItem(k,v);}catch(e){} }
 function load(k){ try{ return localStorage.getItem(k);}catch(e){ return null; } }
@@ -369,7 +375,7 @@ function absorb(data){
 PIDS.forEach((p,i)=>{ const b=document.createElement("button"); b.className="strip"; styleStrip(b,i,PCOLOR[p]);
   b.innerHTML=`<span><span class="big">${p}</span><span class="meta" data-i18n="participant">${t("participant")}</span></span><span class="plus">+</span>`; b.onclick=()=>choose(p); $("#pick").appendChild(b); });
 async function choose(p, fromHash){ pid=p; store("pid",p); day=0; openDay=0; if (!fromHash && location.hash!=="#"+p) location.hash=p; showPart(); window.scrollTo(0,0); await loadMine(true); }
-function goHome(){ pid=null; openDay=null; store("pid",""); $("#part").classList.add("hidden"); $("#dayCard").classList.add("hidden"); $("#pick").classList.remove("hidden"); $("#introText").textContent=t("introPick"); status(""); window.scrollTo(0,0); }
+function goHome(){ flushAutosave(); pid=null; openDay=null; store("pid",""); $("#part").classList.add("hidden"); $("#dayCard").classList.add("hidden"); $("#pick").classList.remove("hidden"); $("#introText").textContent=t("introPick"); status(""); window.scrollTo(0,0); }
 $("#switchBtn").onclick=()=>{ if (location.hash && location.hash!=="#admin") history.back(); else goHome(); };
 $("#logoLink").onclick=ev=>{ ev.preventDefault(); if (location.hash==="#admin") return; if (location.hash) history.back(); else goHome(); };
 window.addEventListener("hashchange", ()=>{
@@ -388,9 +394,9 @@ async function loadMine(resetForm){
 }
 
 // ---------- form widgets ----------
-document.querySelectorAll(".scale").forEach(el=>{ for(let i=1;i<=7;i++){ const b=document.createElement("button"); b.textContent=i; b.onclick=()=>{ form[el.dataset.k]=i; paintForm(); }; el.appendChild(b);} });
-document.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>{ form[b.parentElement.dataset.c]=b.dataset.v; paintForm(); });
-document.querySelectorAll("[data-t]").forEach(el=>el.addEventListener("input",()=>{ form[el.dataset.t]=el.value; }));
+document.querySelectorAll(".scale").forEach(el=>{ for(let i=1;i<=7;i++){ const b=document.createElement("button"); b.textContent=i; b.onclick=()=>{ form[el.dataset.k]=i; paintForm(); autosave(); }; el.appendChild(b);} });
+document.querySelectorAll(".chips button").forEach(b=>b.onclick=()=>{ form[b.parentElement.dataset.c]=b.dataset.v; paintForm(); autosave(); });
+document.querySelectorAll("[data-t]").forEach(el=>el.addEventListener("input",()=>{ form[el.dataset.t]=el.value; autosave(); }));
 function paintForm(){
   document.querySelectorAll(".scale").forEach(el=>[...el.children].forEach((b,i)=>b.classList.toggle("on", form[el.dataset.k]===i+1)));
   document.querySelectorAll(".chips").forEach(el=>[...el.children].forEach(b=>b.classList.toggle("on", form[el.dataset.c]===b.dataset.v)));
@@ -400,16 +406,16 @@ function paintForm(){
 let openDay=null;
 function renderPart(resetForm){
   if (!pid) return;
-  const done=DATES.filter((_,d)=>entries[docId(pid,d)]).length;
+  const done=DATES.filter((_,d)=>isComplete(entries[docId(pid,d)])).length;
   $("#introText").textContent = t("introPart")(pid,done);
   const days=$("#days"); days.innerHTML="";
   DATES.forEach((_,d)=>{
     const w=wayOf(pid,d);
     const b=document.createElement("button"); b.className="strip"+(openDay===d?" open":"");
     styleStrip(b,d,dayShade(PCOLOR[pid],d)); b.style.color=dayInk(PCOLOR[pid],d);
-    const ok=entries[docId(pid,d)]?`<span class="done">${t("saved")}</span>`:'';
+    const ent=entries[docId(pid,d)]; const ok=isComplete(ent)?`<span class="done">${t("saved")}</span>`:(ent?`<span class="done">${t("inProgress")}</span>`:'');
     b.innerHTML=`<span><span class="big">${d+1}</span><span class="meta">${t("way")[w].name}</span></span>${ok}<span class="plus">${openDay===d?"−":"+"}</span>`;
-    b.onclick=()=>{ if (openDay===d){ openDay=null; renderPart(false); } else { openDay=d; day=d; renderPart(true); } };
+    b.onclick=async()=>{ await flushAutosave(); if (openDay===d){ openDay=null; renderPart(false); } else { openDay=d; day=d; renderPart(true); } };
     days.appendChild(b);
     if (openDay===d){ const pc=$("#dayCard"); pc.style.setProperty("--c", b.style.background); pc.classList.remove("hidden"); days.after(pc); }
   });
@@ -445,7 +451,7 @@ function renderFiles(){
   (form.files||[]).forEach((f,i)=>{
     const box=fileEl(f,false);
     const rm=document.createElement("button"); rm.className="x"; rm.textContent="×"; rm.title=t("removeFile"); rm.setAttribute("aria-label", t("removeFile"));
-    rm.onclick=()=>{ form.files.splice(i,1); renderFiles(); $("#saveMsg").textContent=t("needSave"); };
+    rm.onclick=()=>{ form.files.splice(i,1); renderFiles(); autosave(); };
     box.appendChild(rm); list.appendChild(box);
   });
 }
@@ -495,17 +501,46 @@ $("#fileIn").addEventListener("change", ev=>{ const files=[...ev.target.files]; 
   d.addEventListener("drop", ev=>uploadFiles([...(ev.dataTransfer?ev.dataTransfer.files:[])]));
 })();
 
-async function save(silent){
-  const { files, ...log } = form;
-  $("#saveBtn").disabled=true; $("#saveMsg").className="msg"; $("#saveMsg").textContent=t("saving");
-  try {
-    await api({ action:"save", pid, day:day+1, date:DATES[day], way:wayOf(pid,day), topic:TOPICS[day], files:files||[], log });
-    entries[docId(pid,day)] = { id:docId(pid,day), files:files||[], log, updatedAt:new Date().toISOString() };
-    renderPart(false);
-    $("#saveMsg").textContent = silent ? t("savedSilent") : t("savedThanks");
-  } catch(err){ $("#saveMsg").className="msg err"; $("#saveMsg").textContent=t("saveFail")+"("+err.message+")"; }
-  $("#saveBtn").disabled=false;
+function snapshot(){ const { files, ...log } = form; return { pid, day, files:(files||[]).slice(), log:JSON.parse(JSON.stringify(log)) }; }
+function payload(sn){ return { action:"save", pid:sn.pid, day:sn.day+1, date:DATES[sn.day], way:wayOf(sn.pid,sn.day), topic:TOPICS[sn.day], files:sn.files, log:sn.log }; }
+let saveChain=Promise.resolve(), autoTimer=null, pendingSnap=null;
+function save(silent, sn){
+  sn = sn || snapshot();
+  if (!sn.pid) return Promise.resolve();
+  const run = async ()=>{
+    const here = (pid===sn.pid && day===sn.day);
+    if (here){ $("#saveBtn").disabled=true; $("#saveMsg").className="msg"; $("#saveMsg").textContent=t("saving"); }
+    try {
+      await api(payload(sn));
+      entries[docId(sn.pid,sn.day)] = { id:docId(sn.pid,sn.day), files:sn.files, log:sn.log, updatedAt:new Date().toISOString() };
+      if (pid===sn.pid){ renderPart(false); }
+      if (pid===sn.pid && day===sn.day) $("#saveMsg").textContent = silent==="auto" ? t("autoSaved") : silent ? t("savedSilent") : t("savedThanks");
+    } catch(err){ if (pid===sn.pid && day===sn.day){ $("#saveMsg").className="msg err"; $("#saveMsg").textContent=t("saveFail")+"("+err.message+")"; } }
+    if (pid===sn.pid && day===sn.day) $("#saveBtn").disabled=false;
+  };
+  saveChain = saveChain.then(run, run);   // one write at a time, in order
+  return saveChain;
 }
+// autosave: every change is saved a moment after the person stops typing or tapping
+function autosave(){
+  if (!pid) return;
+  pendingSnap = snapshot();
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(flushAutosave, 1200);
+}
+function flushAutosave(){
+  clearTimeout(autoTimer); autoTimer=null;
+  if (!pendingSnap) return Promise.resolve();
+  const sn=pendingSnap; pendingSnap=null;
+  return save("auto", sn);
+}
+// leaving the page: send any unsaved change in the background
+window.addEventListener("pagehide", ()=>{
+  if (!pendingSnap) return;
+  try { navigator.sendBeacon(API_URL, new Blob([JSON.stringify(payload(pendingSnap))], {type:"text/plain;charset=utf-8"})); } catch(e){}
+  pendingSnap=null;
+});
+document.addEventListener("visibilitychange", ()=>{ if (document.visibilityState==="hidden") flushAutosave(); });
 $("#saveBtn").onclick=()=>save(false);
 $("#askBtn").onclick=async()=>{
   const words=$("#askIn").value.split(/[,，、\s]+/).map(x=>x.trim()).filter(Boolean);
